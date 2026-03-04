@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Espace Pronote</title>
+    <style>
+        :root { --green: #2e7d32; --red: #d32f2f; --blue: #1565c0; --orange: #ef6c00; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .card { background: white; max-width: 500px; margin: auto; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        
+        /* Badges */
+        .badge { font-size: 0.75em; padding: 4px 10px; border-radius: 12px; font-weight: bold; margin-left: 10px; display: inline-block; }
+        .badge-devoir { background: #e3f2fd; color: var(--blue); }
+        .badge-compo { background: #fff3e0; color: var(--orange); }
+
+        /* Tableau */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        tr { border-bottom: 1px solid #f0f0f0; }
+        td { padding: 15px 10px; }
+        .note-val { font-weight: bold; font-size: 1.1em; text-align: right; }
+        .val-good { color: var(--green); }
+        .val-bad { color: var(--red); }
+
+        /* Moyenne */
+        .moyenne-box { background: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px; border: 1px solid #eee; }
+        .moyenne-num { font-size: 1.8em; font-weight: 800; color: #333; }
+
+        input, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { background: var(--blue); color: white; border: none; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-view" class="card">
+        <h2 style="color:#333">Connexion Élève</h2>
+        <p style="font-size: 0.9em; color: #666;">Entrez votre nom et créez/entrez votre code PIN.</p>
+        <input type="text" id="inputNom" placeholder="Nom et Prénom (ex: messaoudene nazim)">
+        <input type="password" id="inputPin" placeholder="Code PIN (4 chiffres)">
+        <button onclick="connexion()">Accéder à mes notes</button>
+    </div>
+
+    <div id="notes-view" class="card hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="displayNom" style="margin:0; text-transform: uppercase; color:#555;"></h3>
+            <button onclick="deconnexion()" style="width:auto; padding:5px 10px; background:#999; font-size: 0.7em;">Quitter</button>
+        </div>
+        
+        <div class="moyenne-box">
+            <div style="font-size: 0.8em; color: #666;">MOYENNE GÉNÉRALE</div>
+            <div class="moyenne-num" id="moyenneGen">-- / 10</div>
+        </div>
+
+        <table>
+            <tbody id="bodyNotes"></tbody>
+        </table>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBLG2qLWb4pDe4XXFkbmsBIe6DdOdXoFVQ",
+            authDomain: "naznour-dade9.firebaseapp.com",
+            projectId: "naznour-dade9",
+            storageBucket: "naznour-dade9.firebasestorage.app",
+            messagingSenderId: "913597743014",
+            appId: "1:913597743014:web:26b2c787ccd05918605967"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Vérifier si déjà connecté
+        if(localStorage.getItem('pronote_user')) {
+            loadDashboard(localStorage.getItem('pronote_user'));
+        }
+
+        window.connexion = async () => {
+            const nom = document.getElementById('inputNom').value.toLowerCase().trim();
+            const pin = document.getElementById('inputPin').value;
+
+            if(!nom || pin.length < 4) return alert("Nom et PIN (4 chiffres) requis");
+
+            const userRef = doc(db, "users", nom);
+            const userSnap = await getDoc(userRef);
+
+            if(userSnap.exists()) {
+                if(userSnap.data().pin === pin) {
+                    autoriser(nom);
+                } else {
+                    alert("Code PIN incorrect pour ce nom.");
+                }
+            } else {
+                // Premier enregistrement
+                await setDoc(userRef, { nom: nom, pin: pin });
+                autoriser(nom);
+            }
+        };
+
+        function autoriser(nom) {
+            localStorage.setItem('pronote_user', nom);
+            loadDashboard(nom);
+        }
+
+        window.deconnexion = () => {
+            localStorage.clear();
+            location.reload();
+        };
+
+        function loadDashboard(nom) {
+            document.getElementById('auth-view').classList.add('hidden');
+            document.getElementById('notes-view').classList.remove('hidden');
+            document.getElementById('displayNom').innerText = nom;
+
+            const q = query(collection(db, "grades"), where("nomComplet", "==", nom));
+            
+            onSnapshot(q, (snap) => {
+                let html = "";
+                let totalPoints = 0;
+                let totalCoeff = 0;
+
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const isCompo = d.type === 'Composition';
+                    const badgeClass = isCompo ? 'badge-compo' : 'badge-devoir';
+                    const colorClass = d.note >= 5 ? 'val-good' : 'val-bad';
+
+                    // Calcul moyenne : Compo coeff 2, Devoir coeff 1
+                    const coeff = isCompo ? 2 : 1;
+                    totalPoints += (d.note * coeff);
+                    totalCoeff += coeff;
+
+                    html += `
+                    <tr>
+                        <td>
+                            <div style="font-weight: bold;">${d.matiere}</div>
+                            <div class="badge ${badgeClass}">${d.type}</div>
+                        </td>
+                        <td class="note-val ${colorClass}">${d.note}<small>/10</small></td>
+                    </tr>`;
+                });
+
+                document.getElementById('bodyNotes').innerHTML = html || "<tr><td colspan='2' style='text-align:center'>Aucune note enregistrée.</td></tr>";
+                
+                // Affichage Moyenne
+                if(totalCoeff > 0) {
+                    const moy = (totalPoints / totalCoeff).toFixed(2);
+                    document.getElementById('moyenneGen').innerText = moy + " / 10";
+                    document.getElementById('moyenneGen').style.color = moy >= 5 ? '#2e7d32' : '#d32f2f';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
