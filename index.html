@@ -21,7 +21,53 @@
     </style>
 </head>
 <body>
+<style>
+    .battle-grid {
+        display: grid;
+        grid-template-rows: repeat(4, 1fr);
+        gap: 15px;
+        margin-top: 20px;
+        background: #263238;
+        padding: 15px;
+        border-radius: 10px;
+    }
+    .row-battle { display: flex; justify-content: center; gap: 10px; }
+    .soldier {
+        width: 40px;
+        height: 40px;
+        border-radius: 5px;
+        background: #546e7a;
+        border: 2px solid #90a4ae;
+        position: relative;
+        cursor: help;
+    }
+    .soldier.alive { background: #4caf50; box-shadow: 0 0 10px #4caf50; }
+    .soldier.danger { background: #f44336; box-shadow: 0 0 10px #f44336; }
+    .row-label { color: white; font-size: 0.7em; text-align: center; margin-bottom: 5px; font-weight: bold; }
+</style>
 
+<div class="card">
+    <h3>Carte de Guerre de la Classe</h3>
+    <div class="battle-grid" id="warMap">
+        </div>
+</div>
+
+<script>
+    function renderWarMap(allGrades) {
+        const rows = [6, 5, 4, 5]; // Configuration de tes places
+        let html = "";
+        
+        rows.forEach((count, index) => {
+            html += `<div><div class="row-label">RANGÉE ${index + 1}</div><div class="row-battle">`;
+            for(let i=0; i<count; i++) {
+                // Ici on pourrait lier aux vraies notes des élèves
+                html += `<div class="soldier alive" title="Soldat prêt"></div>`;
+            }
+            html += `</div></div>`;
+        });
+        document.getElementById('warMap').innerHTML = html;
+    }
+</script>
     <div id="auth-view" class="card">
         <h2>Espace Élève</h2>
         <label>Choisis ton nom :</label>
@@ -123,3 +169,4 @@
     </script>
 </body>
 </html>
+
